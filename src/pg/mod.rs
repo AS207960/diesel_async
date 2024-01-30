@@ -142,8 +142,9 @@ impl AsyncConnection for AsyncPgConnection {
     async fn establish(database_url: &str) -> ConnectionResult<Self> {
         #[cfg(feature = "tls-openssl")]
         let (client, connection) = {
-            let builder = SslConnector::builder(SslMethod::tls())
+            let mut builder = SslConnector::builder(SslMethod::tls())
                 .map_err(OpenSSLErrorHelper)?;
+            builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
             let connector = MakeTlsConnector::new(builder.build());
             tokio_postgres::connect(database_url, connector)
                 .await
