@@ -4,10 +4,22 @@ use std::sync::Arc;
 use diesel::ConnectionError;
 
 pub(super) struct ErrorHelper(pub(super) tokio_postgres::Error);
+#[cfg(feature = "tls-openssl")]
+pub(super) struct OpenSSLErrorHelper(pub(super) openssl::error::ErrorStack);
 
 impl From<ErrorHelper> for ConnectionError {
     fn from(postgres_error: ErrorHelper) -> Self {
         ConnectionError::CouldntSetupConfiguration(postgres_error.into())
+    }
+}
+
+#[cfg(feature = "tls-openssl")]
+impl From<OpenSSLErrorHelper> for ConnectionError {
+    fn from(error: OpenSSLErrorHelper) -> Self {
+        ConnectionError::CouldntSetupConfiguration(diesel::result::Error::DatabaseError(
+            diesel::result::DatabaseErrorKind::UnableToSendCommand,
+            Box::new(error.0.to_string()),
+        ))
     }
 }
 

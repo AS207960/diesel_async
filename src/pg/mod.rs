@@ -5,6 +5,8 @@
 //! PostgreSQL, you may need to work with this module directly.
 
 use self::error_helper::ErrorHelper;
+#[cfg(feature = "tls-openssl")]
+use self::error_helper::OpenSSLErrorHelper;
 use self::row::PgRow;
 use self::serialize::ToSqlHelper;
 use crate::stmt_cache::{PrepareCallback, StmtCache};
@@ -31,6 +33,10 @@ use tokio::sync::Mutex;
 use tokio_postgres::types::ToSql;
 use tokio_postgres::types::Type;
 use tokio_postgres::Statement;
+#[cfg(feature = "tls-openssl")]
+use openssl::ssl::{SslConnector, SslMethod};
+#[cfg(feature = "tls-openssl")]
+use postgres_openssl::MakeTlsConnector;
 
 pub use self::transaction_builder::TransactionBuilder;
 
@@ -134,6 +140,16 @@ impl AsyncConnection for AsyncPgConnection {
     type TransactionManager = AnsiTransactionManager;
 
     async fn establish(database_url: &str) -> ConnectionResult<Self> {
+        #[cfg(feature = "tls-openssl")]
+        let (client, connection) = {
+            let builder = SslConnector::builder(SslMethod::tls())
+                .map_err(OpenSSLErrorHelper)?;
+            let connector = MakeTlsConnector::new(builder.build());
+            tokio_postgres::connect(database_url, connector)
+                .await
+                .map_err(ErrorHelper)?
+        };
+        #[cfg(not(feature = "tls-openssl"))]
         let (client, connection) = tokio_postgres::connect(database_url, tokio_postgres::NoTls)
             .await
             .map_err(ErrorHelper)?;
